@@ -2,20 +2,20 @@ package main
 
 import (
 	    "fmt"
-		//"encoding/json"
 		"log"
 		"net/http"
-		//"math/rand"
-		//"strconv"
+		"strconv"
 		"github.com/gorilla/mux"
-	"encoding/json"
+		"encoding/json"
 )
 
-//Book Struct (Model classları) go dilinde modeller değil structlar denir
-//propertyler ve metodlar içinde bulundurur
+// Init books var as a slice(collection) Book struct
+var books []Book
+
+//Book Struct (Model class)
 type Book struct {
-	ID string `json:"id"`
-	Isbn string `json:"isbn"`
+	ID int `json:"id"`
+	Isbn int `json:"isbn"`
 	Title string `json:"title"`
 	Author *Author `json:"author"`
 
@@ -28,34 +28,84 @@ type Author struct {
 
 }
 
-// Init books var as a slice(collection) Book struct
-var books []Book
 
-
-// Get All Books
-func getBooks(w http.ResponseWriter, r *http.Request){
+func getBooks(w http.ResponseWriter, request *http.Request){
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(books)
 
 }
 
-// Get a Single Book
-func getBook(w http.ResponseWriter, r *http.Request){
+
+func getBook(w http.ResponseWriter, request *http.Request){
+	w.Header().Set("Content-Type", "application/json")
+	params:=mux.Vars(request) //Get parameters from request
+
+	// Loop through books and find with id
+	for _, item := range books{
+		if strconv.Itoa(item.ID) == params["id"]{
+			json.NewEncoder(w).Encode(item)
+			return
+		}
+	}
+	json.NewEncoder(w).Encode(&Book{})
 
 }
 
-// Create Book
-func createBook(w http.ResponseWriter, r *http.Request){
+
+func createBook(w http.ResponseWriter, request *http.Request){
+	w.Header().Set("Content-Type", "application/json")
+	var book Book
+	_ = json.NewDecoder(request.Body).Decode(&book)
+
+	book.ID = books[len(books)-1].ID +1 // get last id and add 1
+	book.Isbn = books[len(books)-1].Isbn+1 // get last isbn no and add 1
+
+	books = append(books, book)
+
+	json.NewEncoder(w).Encode(book)
+
 
 }
 
-// Update Book
-func updateBook(w http.ResponseWriter, r *http.Request){
+
+func updateBook(w http.ResponseWriter, request *http.Request){
+	w.Header().Set("Content-Type", "application/json")
+	params :=mux.Vars(request)
+
+
+	for index, item:= range books {
+
+		if strconv.Itoa(item.ID) == params["id"]{
+			var book Book
+			_ = json.NewDecoder(request.Body).Decode(&book)
+			book.ID = books[index].ID // do not change id
+			book.Isbn = books[index].Isbn // do not change isbn
+			books = append(books[:index], books[index+1:]...)//delete the book
+			books = append(books, book)
+			json.NewEncoder(w).Encode(books)
+			return
+		}
+	}
+	json.NewEncoder(w).Encode(&Book{})
+
+
 
 }
 
-// DeleteBook
-func deleteBook(w http.ResponseWriter, r *http.Request){
+
+func deleteBook(w http.ResponseWriter, request *http.Request){
+	w.Header().Set("Content-Type", "application/json")
+	params :=mux.Vars(request)
+
+	for index, item:= range books {
+		if strconv.Itoa(item.ID) == params["id"]{
+			books = append(books[:index], books[index+1:]...)
+			json.NewEncoder(w).Encode(books)
+			return
+		}
+	}
+	json.NewEncoder(w).Encode(&Book{})
+
 
 }
 
@@ -63,14 +113,13 @@ func deleteBook(w http.ResponseWriter, r *http.Request){
 func main() {
 	fmt.Println("Application starting ...")
 
-	/*initialize router, := işareti soldaki nesneye tipi bağlamak için kullanılır
-	bu durumda mux.NewRouter ın tipi route nesnesine bağlanmış olur*/
+	/*initialize router, := type inference*/
 	router :=mux.NewRouter()
 
 	//Mock Data - @todo - implement DB
-	books = append(books, Book{ID:"1", Isbn:"1234" , Title:"LOTR - Fellowship of the Ring", Author: &Author{Firstname: "J.R.R", Lastname:"Tolkien" }})
-	books = append(books, Book{ID:"2", Isbn:"54634", Title:"LOTR - The Two Towers"        , Author: &Author{Firstname: "J.R.R", Lastname:"Tolkien" }})
-	books = append(books, Book{ID:"3", Isbn:"6473" , Title:"LOTR - Return of The King"    , Author: &Author{Firstname: "J.R.R", Lastname:"Tolkien" }})
+	books = append(books, Book{ID:1, Isbn:1 , Title:"LOTR - Fellowship of the Ring", Author: &Author{Firstname: "J.R.R", Lastname:"Tolkien" }})
+	books = append(books, Book{ID:2, Isbn:2, Title:"LOTR - The Two Towers"        , Author: &Author{Firstname: "J.R.R", Lastname:"Tolkien" }})
+	books = append(books, Book{ID:3, Isbn:3 , Title:"LOTR - Return of The King"    , Author: &Author{Firstname: "J.R.R", Lastname:"Tolkien" }})
 
 
 	//Route handlers, api endpoinlerini belirteceğiz
@@ -80,7 +129,10 @@ func main() {
 	router.HandleFunc("/api/books/{id}", updateBook).Methods("PUT")
 	router.HandleFunc("/api/books/{id}", deleteBook).Methods("DELETE")
 
+
 	log.Fatal(http.ListenAndServe(":8000", router))
+
+
 
 
 }
